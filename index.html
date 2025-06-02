@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laberinto Infinito 3D</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+            background-color: #0f0f1a;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+            width: 95vw;
+            height: 80vh;
+            max-width: 1200px;
+            max-height: 800px;
+            cursor: pointer;
+            display: none; /* Hidden by default, shown when game starts */
+        }
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 100;
+        }
+        .start-screen, .pause-menu, .game-over-screen {
+            background-color: rgba(26, 26, 46, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.5);
+            text-align: center;
+            border: 2px solid #00ffff;
+            max-width: 90%;
+        }
+        .start-screen h1, .pause-menu h2, .game-over-screen h2 {
+            color: #00ffff;
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        .start-screen p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+        .button-container button {
+            background-color: #00aaff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 170, 255, 0.4);
+        }
+        .button-container button:hover {
+            background-color: #0077cc;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 170, 255, 0.6);
+        }
+        .button-container button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(0, 170, 255, 0.3);
+        }
+
+
+        .controls-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+            border: 1px solid #00ffff;
+            z-index: 10;
+            user-select: none;
+        }
+        .controls-info p {
+            margin: 5px 0;
+        }
+        .controls-info span {
+            font-weight: bold;
+            color: #00ffff;
+        }
+
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: #00ffff;
+            font-size: 2em;
+        }
+        .loading-spinner {
+            border: 8px solid rgba(0, 255, 255, 0.3);
+            border-top: 8px solid #00ffff;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+
+        /* Game UI elements (health bar, score) */
+        .game-ui {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 50;
+            display: none; /* Hidden by default */
+        }
+        .health-bar-container {
+            width: 200px;
+            height: 25px;
+            background-color: rgba(255, 0, 0, 0.3);
+            border: 1px solid red;
+            border-radius: 5px;
+            overflow: hidden;
+            display: none; /* Hidden by default, shown in Monsters mode */
+        }
+        .health-bar {
+            height: 100%;
+            width: 100%;
+            background-color: red;
+            transition: width 0.1s ease-out;
+        }
+        .score-display {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+            display: none; /* Hidden by default, shown in Infinite mode */
+        }
+
+
+        /* Countdown for Infinite Mode */
+        .countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em; /* Reduced font size for better fit */
+            font-weight: bold;
+            color: #ff00ff;
+            text-shadow: 0 0 20px #ff00ff, 0 0 40px #ff00ff;
+            background-color: rgba(0, 0, 0, 0.7); /* Slightly opaque background */
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid #ff00ff;
+            z-index: 101;
+            display: none;
+            max-width: 90%; /* Ensure it doesn't overflow on smaller screens */
+            text-align: center;
+            line-height: 1.3; /* Adjust line height for readability */
+        }
+        .countdown .small-text {
+            font-size: 0.6em; /* Smaller font for instructions within countdown */
+            color: #fff;
+            text-shadow: none;
+        }
+
+
+        .info-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(0, 170, 255, 0.7);
+            color: white;
+            border: 2px solid #00ffff;
+            border-radius: 50%;
+            font-size: 1.5em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 170, 255, 0.4);
+            z-index: 60;
+            display: none; /* Hidden by default, controlled by JS */
+        }
+        .info-button:hover {
+            background-color: #0077cc;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 170, 255, 0.6);
+        }
+        .info-button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 5px rgba(0, 170, 255, 0.3);
+        }
+
+
+
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .controls-info {
+                font-size: 0.9em;
+                padding: 10px 15px;
+                bottom: 10px;
+            }
+            canvas {
+                width: 98vw;
+                height: 70vh;
+            }
+            .start-screen h1 {
+                font-size: 2em;
+            }
+            .start-screen p {
+                font-size: 1em;
+            }
+            .button-container button {
+                padding: 10px 20px;
+                font-size: 1em;
+            }
+            .countdown {
+                font-size: 2.5em; /* Further reduced for mobile */
+            }
+            .countdown .small-text {
+                font-size: 0.5em;
+            }
+            .game-ui {
+                flex-direction: column;
+                align-items: center;
+            }
+            .health-bar-container, .score-display {
+                margin-bottom: 10px;
+            }
+            .info-button {
+                width: 35px;
+                height: 35px;
+                font-size: 1.2em;
+                bottom: 10px;
+                right: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>Cargando juego...</p>
+    </div>
+
+
+    <div class="ui-overlay" id="startScreen">
+        <div class="start-screen">
+            <h1>Laberinto Infinito 3D</h1>
+            <p>¡Elige tu modo de juego y prepárate para explorar!</p>
+            <div class="mode-description" style="margin-bottom: 20px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                <p><strong>Modo Libre:</strong> Explora el laberinto sin límites ni enemigos. Ideal para practicar el movimiento y la orientación.</p>
+                <p><strong>Modo Monstruos:</strong> Sobrevive a las criaturas que acechan en el laberinto. Recoge pociones para curarte y ataca para ganar puntos.</p>
+                <p><strong>Modo Infinito:</strong> Desafío de velocidad donde avanzas automáticamente hacia atrás. Evita las paredes rojas para conseguir la mayor puntuación posible.</p>
+                <p style="margin-top: 20px; font-weight: bold; color: #00ffff;">Haz clic en la pantalla para tomar el control del ratón y empezar a jugar.</p>
+            </div>
+            <div class="button-container">
+                <button id="freeModeBtn">Libre</button>
+                <button id="monstersModeBtn">Monstruos</button>
+                <button id="infiniteModeBtn">Infinito</button>
+            </div>
+            </div>
+    </div>
+
+
+    <div class="ui-overlay" id="pauseMenu" style="display: none;">
+        <div class="pause-menu">
+            <h2>Juego en Pausa</h2>
+            <div class="button-container">
+                <button id="resumeBtn">Continuar</button>
+                <button id="backToHomeBtn">Volver al Inicio</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="ui-overlay" id="gameOverScreen" style="display: none;">
+        <div class="game-over-screen">
+            <h2>¡Fin del Juego!</h2>
+            <p id="gameOverMessage"></p>
+            <div class="button-container">
+                <button id="restartGameBtn">Volver al Inicio</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="game-container"></div>
+
+
+    <div class="controls-info" id="controlsInfo" style="display: none;">
+        <p>Haz clic en el juego para controlar la cámara con el ratón.</p>
+        <p>Mover: <span>WASD</span> y <span>Flechas</span></p>
+        <p>Pausa / Salir del control de cámara: <span>Esc</span></p>
+        <p>Atacar (Modo Monstruos): <span>Barra Espaciadora</span></p>
+    </div>
+
+
+    <button id="infoButton" class="info-button">i</button>
+
+
+    <div class="game-ui" id="gameUI">
+        <div class="health-bar-container" id="healthBarContainer">
+            <div class="health-bar" id="healthBar"></div>
+        </div>
+        <div class="score-display" id="scoreDisplay">Puntuación: 0</div>
+    </div>
+
+
+    <div class="countdown" id="countdownDisplay"></div>
+
+
+    <script type="module">
+        // Global variables for Three.js
+        let scene, camera, renderer;
+        let player; // The player object to which the camera is attached
+        let keys = {}; // State of pressed keys
+        let isPointerLocked = false; // Pointer lock state
+        let gameRunning = false; // Flag to control game loop
+        let gameMode = ''; // 'free', 'monsters', 'infinite'
+        let playerHealth = 100;
+        let score = 0;
+        let infiniteModeSpeed = 0.2; // Initial speed for infinite mode
+        let lastUpdateTime = 0; // For delta time calculation
+
+
+        // New variables for countdown and controls display
+        let isCountingDown = false;
+        let countdownTimer = null;
+        let controlsTimeoutId = null; // To manage the controls info auto-hide
+
+
+        // Game constants
+        const playerSpeed = 0.2; // Base player movement speed for free/monsters modes
+        const mouseSensitivity = 0.002; // Mouse sensitivity for rotation
+        const chunkSize = 20; // Size of each maze "chunk"
+        const renderDistance = 3; // How many chunks to render around the player
+        const cameraHeight = 1.5; // Camera height above the ground
+        const playerCollisionRadius = 0.75; // Radius of the player's collision sphere
+        const spawnZoneRadius = 15; // Increased radius for a clearer initial corridor
+
+
+        // Textures
+        let floorTexture;
+
+
+        // Monsters related variables
+        let monsters = [];
+        const maxMonsters = 5;
+        const monsterSpawnDistance = 30; // Distance from player to spawn monsters
+        const monsterSpeed = 1.5; // Adjusted speed for monsters
+        const monsterAttackRange = 2;
+        const monsterDamage = 5; // Damage per hit
+        let lastMonsterSpawnTime = 0;
+        const monsterSpawnCooldown = 5; // seconds between monster spawns
+        const healthGainPerKill = 20; // Health gained when killing a monster
+        const monsterScoreValue = 100; // Points gained per monster kill
+
+
+        let lastPlayerAttackTime = 0;
+        const playerAttackCooldown = 0.5; // seconds between player attacks
+
+
+        // Potions related variables
+        let potions = [];
+        const maxPotions = 3;
+        const potionHealthRestore = 25;
+        const potionSpawnCooldown = 10; // seconds between potion spawns
+        let lastPotionSpawnTime = 0;
+        const potionRadius = 0.5; // Radius of the potion mesh for collision
+
+
+        // Variables for chunk tracking
+        let currentChunkX = 0;
+        let currentChunkZ = 0;
+        const loadedChunks = new Map(); // Map to store loaded chunks
+
+
+        // UI Elements
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const startScreen = document.getElementById('startScreen');
+        const pauseMenu = document.getElementById('pauseMenu');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const controlsInfo = document.getElementById('controlsInfo');
+        const infoButton = document.getElementById('infoButton');
+        const gameUI = document.getElementById('gameUI');
+        const healthBarContainer = document.getElementById('healthBarContainer');
+        const healthBar = document.getElementById('healthBar');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const countdownDisplay = document.getElementById('countdownDisplay');
+
+
+        // Game state functions
+        function showScreen(screenId) {
+            startScreen.style.display = 'none';
+            pauseMenu.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            gameUI.style.display = 'none';
+            countdownDisplay.style.display = 'none';
+            renderer.domElement.style.display = 'none';
+            controlsInfo.style.display = 'none'; // Hide controls info by default
+            infoButton.style.display = 'none'; // Hide info button by default
+
+
+            if (screenId === 'start') {
+                startScreen.style.display = 'flex';
+            } else if (screenId === 'game') {
+                renderer.domElement.style.display = 'block';
+                gameUI.style.display = 'flex';
+                infoButton.style.display = 'flex'; // Show info button during game
+                if (gameMode === 'monsters') {
+                    healthBarContainer.style.display = 'block';
+                    scoreDisplay.style.display = 'block';
+                } else {
+                    healthBarContainer.style.display = 'none';
+                }
+                if (gameMode === 'infinite') {
+                    scoreDisplay.style.display = 'block';
+                } else {
+                    if (gameMode !== 'monsters') {
+                        scoreDisplay.style.display = 'none';
+                    }
+                }
+            } else if (screenId === 'pause') {
+                pauseMenu.style.display = 'flex';
+                infoButton.style.display = 'flex'; // Show info button during pause
+            } else if (screenId === 'gameOver') {
+                gameOverScreen.style.display = 'flex';
+                infoButton.style.display = 'none'; // Hide info button on game over
+            } else if (screenId === 'countdown') {
+                countdownDisplay.style.display = 'flex';
+                renderer.domElement.style.display = 'block'; // Show canvas during countdown
+                infoButton.style.display = 'none'; // Hide info button during countdown
+            }
+        }
+
+
+        function resetGame() {
+            // Clear existing maze
+            loadedChunks.forEach(chunk => scene.remove(chunk));
+            loadedChunks.clear();
+
+
+            // Clear existing monsters
+            monsters.forEach(monster => scene.remove(monster.mesh));
+            monsters = [];
+            lastMonsterSpawnTime = 0;
+
+
+            // Clear existing potions
+            potions.forEach(potion => scene.remove(potion.mesh));
+            potions = [];
+            lastPotionSpawnTime = 0;
+
+
+            // Reset player position and rotation
+            player.position.set(0, cameraHeight, 0);
+            player.rotation.set(0, 0, 0);
+            camera.rotation.set(0, 0, 0); // Reset camera pitch
+
+
+            // Reset game state variables
+            playerHealth = 100;
+            score = 0;
+            infiniteModeSpeed = 0.2;
+            updateHealthBar();
+            updateScoreDisplay();
+
+
+            gameRunning = false;
+            gameMode = '';
+            exitPointerLock(); // Ensure pointer is unlocked
+
+
+            // Reset countdown state
+            isCountingDown = false;
+            if (countdownTimer) clearTimeout(countdownTimer);
+            countdownTimer = null;
+            if (controlsTimeoutId) clearTimeout(controlsTimeoutId);
+            controlsTimeoutId = null;
+
+
+            showScreen('start');
+        }
+
+
+        function startGame(mode) {
+            gameMode = mode;
+            gameRunning = false; // Game is not running yet, might be in countdown
+            playerHealth = 100; // Reset health for new game
+            score = 0; // Reset score for new game
+            infiniteModeSpeed = 0.2; // Reset speed for infinite mode
+
+
+            // Re-generate initial maze chunks for a fresh start
+            loadedChunks.forEach(chunk => scene.remove(chunk));
+            loadedChunks.clear();
+            currentChunkX = 0;
+            currentChunkZ = 0;
+            generateSurroundingChunks(); // Generate initial chunks
+
+
+            // Reset player position and camera
+            player.position.set(0, cameraHeight, 0);
+            player.rotation.set(0, 0, 0);
+            camera.rotation.set(0, 0, 0);
+
+
+            updateHealthBar();
+            updateScoreDisplay();
+
+
+            if (gameMode === 'infinite') {
+                startInfiniteModeCountdown();
+            } else {
+                gameRunning = true; // Start game immediately for other modes
+                showScreen('game');
+                requestPointerLock(); // Request pointer lock immediately for non-infinite modes
+
+
+                // Show controls for 5 seconds
+                controlsInfo.style.display = 'block';
+                if (controlsTimeoutId) clearTimeout(controlsTimeoutId);
+                controlsTimeoutId = setTimeout(() => {
+                    controlsInfo.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+
+        function pauseGame() {
+            gameRunning = false;
+            showScreen('pause');
+            exitPointerLock();
+            if (controlsTimeoutId) clearTimeout(controlsTimeoutId); // Clear auto-hide timeout when pausing
+        }
+
+
+        function resumeGame() {
+            gameRunning = true;
+            showScreen('game');
+            requestPointerLock(); // Re-engage pointer lock
+            // When resuming, controls are not shown automatically again, user can use info button
+        }
+
+
+        function gameOver(message) {
+            gameRunning = false;
+            gameOverMessage.textContent = message;
+            showScreen('gameOver');
+            exitPointerLock();
+            if (controlsTimeoutId) clearTimeout(controlsTimeoutId); // Clear auto-hide timeout on game over
+        }
+
+
+        function updateHealthBar() {
+            healthBar.style.width = `${playerHealth}%`;
+            if (playerHealth <= 0) {
+                gameOver('¡Te has quedado sin vida!');
+            }
+        }
+
+
+        function updateScoreDisplay() {
+            scoreDisplay.textContent = `Puntuación: ${Math.floor(score)}`;
+        }
+
+
+        function startInfiniteModeCountdown() {
+            isCountingDown = true;
+            showScreen('countdown');
+            countdownDisplay.innerHTML = "MODO INFINITO: Te mueves automáticamente hacia atrás. ¡Evita las paredes rojas!<br><span class='small-text'>Haz clic en la pantalla para mover la cámara.</span><br><br>Preparado...";
+           
+            // The click listener for pointer lock is already added once in init()
+            // No need to add/remove it here. Its functionality is controlled by gameRunning state.
+
+
+            let count = 3;
+            countdownTimer = setTimeout(() => {
+                countdownDisplay.innerHTML = count; // Only show number
+               
+                const numericCountdown = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        countdownDisplay.textContent = count;
+                    } else if (count === 0) {
+                        countdownDisplay.textContent = '¡GO!';
+                    } else {
+                        clearInterval(numericCountdown);
+                        isCountingDown = false;
+                        gameRunning = true; // Start game after countdown
+                        showScreen('game');
+                       
+                        // Show controls for 5 seconds after GO!
+                        controlsInfo.style.display = 'block';
+                        if (controlsTimeoutId) clearTimeout(controlsTimeoutId);
+                        controlsTimeoutId = setTimeout(() => {
+                            controlsInfo.style.display = 'none';
+                        }, 5000);
+                    }
+                }, 1000);
+            }, 3000); // Show rules for 3 seconds
+        }
+
+
+        // Function to initialize the scene
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e); // Scene background color
+
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, cameraHeight, 0); // Initial camera position
+
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft light
+            scene.add(ambientLight);
+
+
+            // Directional light
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 5);
+            scene.add(directionalLight);
+
+
+            // Create the player object (an invisible sphere for collision and camera)
+            const playerGeometry = new THREE.SphereGeometry(playerCollisionRadius, 16, 16);
+            const playerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0 }); // Invisible
+            player = new THREE.Mesh(playerGeometry, playerMaterial);
+            player.position.set(0, cameraHeight, 0); // Initial player position
+            scene.add(player);
+
+
+            // Attach the camera to the player
+            player.add(camera);
+
+
+            // Create a texture for the floor
+            const canvasTexture = document.createElement('canvas');
+            canvasTexture.width = 64;
+            canvasTexture.height = 64;
+            const context = canvasTexture.getContext('2d');
+            context.fillStyle = '#550077'; // Base purple color
+            context.fillRect(0, 0, 64, 64);
+            context.strokeStyle = '#8000b0'; // Lighter purple for grid lines
+            context.lineWidth = 1;
+            context.beginPath();
+            context.moveTo(0, 32);
+            context.lineTo(64, 32);
+            context.moveTo(32, 0);
+            context.lineTo(32, 64);
+            context.stroke();
+            floorTexture = new THREE.CanvasTexture(canvasTexture);
+            floorTexture.wrapS = THREE.RepeatWrapping;
+            floorTexture.wrapT = THREE.RepeatWrapping;
+            floorTexture.repeat.set(10, 10); // Adjust repetition for scale
+
+
+            // Event Listeners for UI buttons
+            document.getElementById('freeModeBtn').addEventListener('click', () => startGame('free'));
+            document.getElementById('monstersModeBtn').addEventListener('click', () => startGame('monsters'));
+            document.getElementById('infiniteModeBtn').addEventListener('click', () => startGame('infinite'));
+            document.getElementById('resumeBtn').addEventListener('click', resumeGame);
+            document.getElementById('backToHomeBtn').addEventListener('click', resetGame);
+            document.getElementById('restartGameBtn').addEventListener('click', resetGame);
+
+
+            // Info button toggle
+            infoButton.addEventListener('click', () => {
+                if (controlsInfo.style.display === 'none' || controlsInfo.style.display === '') {
+                    controlsInfo.style.display = 'block';
+                    if (controlsTimeoutId) clearTimeout(controlsTimeoutId); // Clear any pending auto-hide
+                    controlsTimeoutId = setTimeout(() => {
+                        controlsInfo.style.display = 'none';
+                    }, 5000); // Re-hide after 5 seconds
+                } else {
+                    controlsInfo.style.display = 'none';
+                    if (controlsTimeoutId) clearTimeout(controlsTimeoutId); // Clear timeout if user hides it manually
+                }
+            });
+
+
+
+
+            // Keyboard event handlers for movement and pause
+            window.addEventListener('keydown', onKeyDown, false);
+            window.addEventListener('keyup', onKeyUp, false);
+            // Spacebar for attack
+            document.addEventListener('keydown', (event) => {
+                if (event.key === ' ' && gameRunning && isPointerLocked) {
+                    playerAttack(performance.now()); // Pass current time for cooldown
+                }
+            }, false);
+
+
+
+
+            // Mouse event handlers for camera control (Pointer Lock API)
+            // The canvas element is the target for pointer lock
+            // This listener is added ONCE and persists. Its behavior is controlled by gameRunning state.
+            renderer.domElement.addEventListener('click', requestPointerLock, false);
+            document.addEventListener('pointerlockchange', onPointerLockChange, false);
+            document.addEventListener('pointerlockerror', onPointerLockError, false);
+
+
+            // Window resize handler
+            window.addEventListener('resize', onWindowResize, false);
+
+
+            // Hide the loading overlay and show start screen
+            loadingOverlay.style.display = 'none';
+            showScreen('start');
+
+
+            // Start the animation loop
+            animate();
+        }
+
+
+        // Function to handle window resizing
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // Adjust canvas size in the DOM
+            const canvas = renderer.domElement;
+            canvas.style.width = '95vw';
+            canvas.style.height = '80vh';
+            if (window.innerWidth <= 768) {
+                canvas.style.width = '98vw';
+                canvas.style.height = '70vh';
+            }
+        }
+
+
+        // Function to generate a random maze chunk
+        function generateMazeChunk(chunkX, chunkZ) {
+            const group = new THREE.Group();
+            const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x00aaff, flatShading: true }); // Bright blue walls
+            const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, flatShading: true }); // Floor with texture
+
+
+            if (gameMode === 'infinite') {
+                wallMaterial.color.setHex(0xff0000); // Red walls for infinite mode
+            }
+
+
+            // Maze cell size
+            const cellSize = 5;
+            const numCells = chunkSize / cellSize; // Number of cells per chunk
+
+
+            // Generate a simple maze pattern (e.g., random walls)
+            for (let i = 0; i < numCells; i++) {
+                for (let j = 0; j < numCells; j++) {
+                    const xOffset = chunkX * chunkSize + i * cellSize;
+                    const zOffset = chunkZ * chunkSize + j * cellSize;
+
+
+                    // Floor
+                    const floorGeometry = new THREE.BoxGeometry(cellSize, 0.1, cellSize);
+                    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+                    floor.position.set(xOffset + cellSize / 2, -0.05, zOffset + cellSize / 2);
+                    group.add(floor);
+
+
+                    // Calculate distance from the center of the current cell to the origin (0,0)
+                    const cellCenterX = xOffset + cellSize / 2;
+                    const cellCenterZ = zOffset + cellSize / 2;
+                    const distanceToOrigin = Math.sqrt(cellCenterX * cellCenterX + cellCenterZ * cellCenterZ);
+
+
+                    // Only generate walls if outside the initial spawn zone (corridor)
+                    // This creates a clear area around (0,0) where the player starts.
+                    if (distanceToOrigin > spawnZoneRadius) {
+                        // Random walls
+                        if (Math.random() < 0.4) { // Higher probability of a wall
+                            const wallWidth = Math.random() < 0.5 ? cellSize : 0.5;
+                            const wallDepth = wallWidth === cellSize ? 0.5 : cellSize;
+                            const wallHeight = 3;
+                            const wallGeometry = new THREE.BoxGeometry(wallWidth, wallHeight, wallDepth);
+                            const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+
+
+                            // Position the wall at the center of the cell or on an edge
+                            if (wallWidth === cellSize) { // Horizontal wall
+                                wall.position.set(xOffset + cellSize / 2, wallHeight / 2, zOffset + (Math.random() < 0.5 ? 0 : cellSize));
+                            } else { // Vertical wall
+                                wall.position.set(xOffset + (Math.random() < 0.5 ? 0 : cellSize), wallHeight / 2, zOffset + cellSize / 2);
+                            }
+                            group.add(wall);
+                        }
+                    }
+                }
+            }
+            return group;
+        }
+
+
+        // Function to generate maze chunks around the player
+        function generateSurroundingChunks() {
+            for (let x = currentChunkX - renderDistance; x <= currentChunkX + renderDistance; x++) {
+                for (let z = currentChunkZ - renderDistance; z <= currentChunkZ + renderDistance; z++) {
+                    const chunkKey = `${x},${z}`;
+                    if (!loadedChunks.has(chunkKey)) {
+                        const chunk = generateMazeChunk(x, z);
+                        scene.add(chunk);
+                        loadedChunks.set(chunkKey, chunk);
+                    }
+                }
+            }
+            // Remove chunks that are too far away to optimize performance
+            loadedChunks.forEach((chunk, key) => {
+                const [chunkX, chunkZ] = key.split(',').map(Number);
+                if (Math.abs(chunkX - currentChunkX) > renderDistance + 1 || Math.abs(chunkZ - currentChunkZ) > renderDistance + 1) {
+                    scene.remove(chunk);
+                    loadedChunks.delete(key);
+                }
+            });
+        }
+
+
+        // Keyboard event handlers for movement and pause
+        function onKeyDown(event) {
+            keys[event.key.toLowerCase()] = true;
+            // Corrected to use 'escape' key for consistency
+            if (event.key.toLowerCase() === 'escape' && (gameRunning || isCountingDown)) { // Allow pause during countdown too
+                pauseGame();
+            }
+        }
+
+
+        function onKeyUp(event) {
+            keys[event.key.toLowerCase()] = false;
+        }
+
+
+        // Functions for Pointer Lock API (mouse camera control)
+        function requestPointerLock() {
+            // Only request pointer lock if the game is running (or just started after countdown)
+            // and if it's not already locked.
+            if (gameRunning && document.pointerLockElement !== renderer.domElement) {
+                renderer.domElement.requestPointerLock();
+            }
+        }
+
+
+        function exitPointerLock() {
+            if (document.pointerLockElement === renderer.domElement) {
+                document.exitPointerLock();
+            }
+        }
+
+
+        function onPointerLockChange() {
+            if (document.pointerLockElement === renderer.domElement) {
+                isPointerLocked = true;
+                document.addEventListener('mousemove', onMouseMove, false);
+            } else {
+                isPointerLocked = false;
+                document.removeEventListener('mousemove', onMouseMove, false);
+            }
+        }
+
+
+        function onPointerLockError() {
+            console.error('Error al bloquear el puntero.');
+        }
+
+
+        // Mouse movement handler for camera rotation
+        function onMouseMove(event) {
+            if (!isPointerLocked) return;
+
+
+            const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+            let movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+
+            // Horizontal rotation (Yaw) of the player (and thus the camera)
+            player.rotation.y -= movementX * mouseSensitivity;
+
+
+            // Vertical rotation (Pitch) of the camera (normal, not inverted)
+            camera.rotation.x -= movementY * mouseSensitivity;
+            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+        }
+
+
+        // Function to check for collisions with walls for any object
+        function checkWallCollision(objectPosition, objectRadius) {
+            const objectSphere = new THREE.Sphere(objectPosition, objectRadius);
+
+
+            let collisionDetected = false;
+            let collidedWallType = null;
+
+
+            loadedChunks.forEach(chunkGroup => {
+                chunkGroup.children.forEach(mesh => {
+                    // Check only for wall meshes (BoxGeometry and specific colors)
+                    if (mesh.geometry.type === 'BoxGeometry' && (mesh.material.color.getHex() === 0x00aaff || mesh.material.color.getHex() === 0xff0000)) {
+                        const wallBox = new THREE.Box3().setFromObject(mesh);
+                        if (objectSphere.intersectsBox(wallBox)) {
+                            collisionDetected = true;
+                            if (mesh.material.color.getHex() === 0xff0000) {
+                                collidedWallType = 'red';
+                            }
+                            return;
+                        }
+                    }
+                });
+                if (collisionDetected) return;
+            });
+
+
+            return { detected: collisionDetected, type: collidedWallType };
+        }
+
+
+        // Monster 3D Model (simple cube for now)
+        function createMonsterMesh() {
+            const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5); // Slightly larger cube
+            const material = new THREE.MeshPhongMaterial({ color: 0xcc00ff, flatShading: true }); // Purple monster
+            const monster = new THREE.Mesh(geometry, material);
+            monster.position.y = 0.75; // Half of monster height
+            return monster;
+        }
+
+
+        function spawnMonster(playerPos) {
+            if (monsters.length >= maxMonsters) return;
+
+
+            const monster = createMonsterMesh();
+            // Spawn monster at a random position around the player, but not too close
+            const angle = Math.random() * Math.PI * 2;
+            // Spawn monsters further away to give player time to react
+            const spawnDistance = monsterSpawnDistance + Math.random() * 10;
+            const spawnX = playerPos.x + Math.cos(angle) * spawnDistance;
+            const spawnZ = playerPos.z + Math.sin(angle) * spawnDistance;
+            monster.position.set(spawnX, 0.75, spawnZ);
+            scene.add(monster);
+
+
+            monsters.push({
+                mesh: monster,
+                health: 100,
+                lastAttackTime: 0, // Cooldown for monster's attack
+                collisionRadius: 0.75 // Assuming monster is a cube of 1.5 side, radius is 0.75
+            });
+        }
+
+
+        function updateMonsters(deltaTime, currentTime) {
+            // Spawn new monsters if below max and cooldown allows
+            if (monsters.length < maxMonsters && (currentTime - lastMonsterSpawnTime) / 1000 > monsterSpawnCooldown) {
+                spawnMonster(player.position);
+                lastMonsterSpawnTime = currentTime;
+            }
+
+
+            monsters.forEach(monster => {
+                const monsterMesh = monster.mesh;
+                const originalMonsterPosition = monsterMesh.position.clone();
+
+
+                // Move monster towards player
+                const direction = new THREE.Vector3().subVectors(player.position, monsterMesh.position).normalize();
+                const moveAmount = monsterSpeed * deltaTime;
+
+
+                // Calculate tentative next position
+                const tentativeNextPos = originalMonsterPosition.clone().addScaledVector(direction, moveAmount);
+
+
+                // Check collision for monster movement
+                const collisionResult = checkWallCollision(tentativeNextPos, monster.collisionRadius);
+
+
+                if (!collisionResult.detected) {
+                    monsterMesh.position.copy(tentativeNextPos);
+                } else {
+                    // If collision detected, try to slide along the wall
+                    const slideX = originalMonsterPosition.clone().add(new THREE.Vector3(direction.x * moveAmount, 0, 0));
+                    const slideZ = originalMonsterPosition.clone().add(new THREE.Vector3(0, 0, direction.z * moveAmount));
+
+
+                    const collisionX = checkWallCollision(slideX, monster.collisionRadius);
+                    if (!collisionX.detected) {
+                        monsterMesh.position.x = slideX.x;
+                    }
+
+
+                    const collisionZ = checkWallCollision(slideZ, monster.collisionRadius);
+                    if (!collisionZ.detected) {
+                        monsterMesh.position.z = slideZ.z;
+                    }
+                }
+
+
+                // Simple look at player (optional, but makes them seem more alive)
+                monsterMesh.lookAt(player.position.x, monsterMesh.position.y, player.position.z);
+
+
+                // Check for monster attack
+                const distanceToPlayer = monsterMesh.position.distanceTo(player.position);
+                if (distanceToPlayer < monsterAttackRange) {
+                    const attackCooldown = 1; // seconds between monster hits
+                    if ((currentTime - monster.lastAttackTime) / 1000 > attackCooldown) {
+                        playerHealth -= monsterDamage;
+                        updateHealthBar();
+                        monster.lastAttackTime = currentTime;
+                    }
+                }
+            });
+
+
+            // Filter out dead monsters
+            monsters = monsters.filter(monster => {
+                if (monster.health <= 0) {
+                    scene.remove(monster.mesh);
+                    playerHealth = Math.min(100, playerHealth + healthGainPerKill); // Gain health on kill
+                    score += monsterScoreValue; // Add score for killing monster
+                    updateHealthBar();
+                    updateScoreDisplay(); // Update score display
+                    return false; // Remove from array
+                }
+                return true; // Keep in array
+            });
+        }
+
+
+        function playerAttack(currentTime) {
+            if (gameMode !== 'monsters') return;
+
+
+            // Cooldown for player attack
+            if ((currentTime - lastPlayerAttackTime) / 1000 < playerAttackCooldown) {
+                return;
+            }
+            lastPlayerAttackTime = currentTime;
+
+
+            const attackRange = 2.5; // Range of player's sword attack
+            const attackRadius = 1.5; // How wide the attack hits
+
+
+            // Check for monsters in attack range
+            monsters.forEach(monster => {
+                const distanceToMonster = player.position.distanceTo(monster.mesh.position);
+                if (distanceToMonster < attackRange + attackRadius) {
+                    monster.health -= 30; // Player damage to monster
+                    // Monster health check and removal is handled in updateMonsters
+                }
+            });
+        }
+
+
+        // Potion 3D Model (simple sphere)
+        function createPotionMesh() {
+            const geometry = new THREE.SphereGeometry(potionRadius, 16, 16);
+            const material = new THREE.MeshPhongMaterial({ color: 0x00ff00, flatShading: true }); // Green potion
+            const potion = new THREE.Mesh(geometry, material);
+            potion.position.y = potionRadius; // Half of potion height
+            return potion;
+        }
+
+
+        function spawnPotion(playerPos) {
+            if (potions.length >= maxPotions) return;
+
+
+            const potion = createPotionMesh();
+            // Spawn potion at a random position around the player, not too close to player or walls
+            let spawnX, spawnZ;
+            let attempts = 0;
+            const maxAttempts = 50;
+            const minSpawnDistance = 10; // Minimum distance from player to spawn potion
+
+
+            do {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = minSpawnDistance + Math.random() * (chunkSize * renderDistance - minSpawnDistance); // Within render distance
+                spawnX = playerPos.x + Math.cos(angle) * distance;
+                spawnZ = playerPos.z + Math.sin(angle) * distance;
+                attempts++;
+            } while (checkWallCollision(new THREE.Vector3(spawnX, potion.position.y, spawnZ), potionRadius).detected && attempts < maxAttempts);
+
+
+            if (attempts < maxAttempts) {
+                potion.position.set(spawnX, potion.position.y, spawnZ);
+                scene.add(potion);
+                potions.push({ mesh: potion });
+            }
+        }
+
+
+        function updatePotions(currentTime) {
+            // Spawn new potions if below max and cooldown allows
+            if (potions.length < maxPotions && (currentTime - lastPotionSpawnTime) / 1000 > potionSpawnCooldown) {
+                spawnPotion(player.position);
+                lastPotionSpawnTime = currentTime;
+            }
+
+
+            // Check for player collision with potions
+            potions = potions.filter((potion, index) => {
+                const distanceToPlayer = player.position.distanceTo(potion.mesh.position);
+                if (distanceToPlayer < playerCollisionRadius + potion.mesh.geometry.parameters.radius) {
+                    playerHealth = Math.min(100, playerHealth + potionHealthRestore);
+                    updateHealthBar();
+                    return false; // Remove potion
+                }
+                return true; // Keep potion
+            });
+        }
+
+
+        // Main game animation loop
+        function animate(currentTime) {
+            requestAnimationFrame(animate);
+
+
+            if (!gameRunning && !isCountingDown) { // Only pause if game is not running AND not counting down
+                lastUpdateTime = currentTime; // Reset for when game resumes
+                return;
+            }
+
+
+            const deltaTime = (currentTime - lastUpdateTime) / 1000; // Delta time in seconds
+            lastUpdateTime = currentTime;
+
+
+            // Clone the player's current position to calculate tentative movements
+            const originalPlayerPosition = player.position.clone();
+
+
+            // Calculate the desired movement vector
+            const moveVector = new THREE.Vector3();
+            const forwardDirection = new THREE.Vector3();
+            player.getWorldDirection(forwardDirection); // Get the player's forward direction
+
+
+            const rightDirection = new THREE.Vector3();
+            rightDirection.crossVectors(forwardDirection, player.up); // Get the rightward direction (standard FPS)
+
+
+            let currentSpeed = playerSpeed;
+
+
+            // Prevent movement during countdown
+            if (!isCountingDown) {
+                if (gameMode === 'infinite') {
+                    currentSpeed = infiniteModeSpeed;
+                    // Forced backward movement in infinite mode
+                    moveVector.addScaledVector(forwardDirection, -currentSpeed); // Moves backward
+                    score += currentSpeed * deltaTime * 2; // Double score increase rate
+                    updateScoreDisplay();
+
+
+                    // Gradually increase speed in infinite mode
+                    infiniteModeSpeed += 0.005 * deltaTime; // Increase speed by 0.005 units per second
+                } else {
+                    // WASD and Arrow keys now have the same inverted behavior
+                    if (keys['w'] || keys['arrowup']) {
+                        moveVector.addScaledVector(forwardDirection, -currentSpeed); // W and ArrowUp move backward
+                    }
+                    if (keys['s'] || keys['arrowdown']) {
+                        moveVector.addScaledVector(forwardDirection, currentSpeed); // S and ArrowDown move forward
+                    }
+                }
+
+
+                // Inverted A/D and ArrowLeft/ArrowRight controls
+                if (keys['a'] || keys['arrowleft']) {
+                    moveVector.addScaledVector(rightDirection, currentSpeed); // A and ArrowLeft move right
+                }
+                if (keys['d'] || keys['arrowright']) {
+                    moveVector.addScaledVector(rightDirection, -currentSpeed); // D and ArrowRight move left
+                }
+            }
+
+
+
+
+            // Normalize the movement vector if the player is moving diagonally
+            // This prevents diagonal movement from being faster than linear movement.
+            if (moveVector.lengthSq() > 0) {
+                moveVector.normalize().multiplyScalar(currentSpeed);
+            }
+
+
+            // Apply movement and check collisions for player
+            const nextPosX = originalPlayerPosition.clone().add(new THREE.Vector3(moveVector.x, 0, 0));
+            const collisionX = checkWallCollision(nextPosX, playerCollisionRadius);
+            if (!collisionX.detected) {
+                player.position.x = nextPosX.x;
+            }
+
+
+            const nextPosZ = originalPlayerPosition.clone().add(new THREE.Vector3(0, 0, moveVector.z));
+            const collisionZ = checkWallCollision(nextPosZ, playerCollisionRadius);
+            if (!collisionZ.detected) {
+                player.position.z = nextPosZ.z;
+            }
+
+
+            // Handle infinite mode specific wall collision
+            if (gameMode === 'infinite') {
+                if (collisionX.type === 'red' || collisionZ.type === 'red') {
+                    gameOver('¡Tocaste una pared roja! Fin del juego.');
+                }
+            }
+
+
+
+
+            // Keep camera height constant
+            player.position.y = cameraHeight;
+
+
+            // Update chunks if the player moves to a new chunk
+            const newChunkX = Math.floor(player.position.x / chunkSize);
+            const newChunkZ = Math.floor(player.position.z / chunkSize);
+
+
+            if (newChunkX !== currentChunkX || newChunkZ !== currentChunkZ) {
+                currentChunkX = newChunkX;
+                currentChunkZ = newChunkZ;
+                generateSurroundingChunks();
+            }
+
+
+            // Update game elements based on mode
+            if (gameMode === 'monsters') {
+                updateMonsters(deltaTime, currentTime);
+                updatePotions(currentTime);
+            } else if (gameMode === 'free') {
+                updatePotions(currentTime);
+            }
+
+
+            renderer.render(scene, camera);
+        }
+
+
+        // Ensure init is called after the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
